@@ -7,8 +7,8 @@
 #include <WiFiClient.h>
 #include "thingplug.h"
 
-#define LOW_BATTERY   3.8
-#define SMOKE_DETECT_CONDITION   20
+#define LOW_BATTERY   3.7
+#define SMOKE_DETECT_CONDITION   30
 
 // 5 octave - Do, Re, Mi, Fa, So, La, Ti, 4 octave - Do
 const int aFiveOctave[8] = {523, 587, 659, 698, 784, 880, 987, 1046};
@@ -16,7 +16,6 @@ const int aFiveOctave[8] = {523, 587, 659, 698, 784, 880, 987, 1046};
 // 핀 선언 및 정의
 const int pinAdc = A0;
 const int pinLed = 16;
-const int pinSwitch = 13;
 const int pinPiezo = 15;  
 
 // 공유기, 구글 API, ThingPlug 엑세스 요구사항
@@ -26,12 +25,14 @@ const char* passwd = "iotiotiot";
 const char *addr = "mqtt.sktiot.com";
 const char *id = "edgeilab";
 const char *pw = "ZEwxMW9DZmNQK3dudWdRcTV4bVhEK1ByK3U2amtxU3NCWjE0OERNREI3QkUwdCtsSmhZWDQ4eGRURkd0NVFIUw==";
-const char *deviceId = "edgeilab_20180418_esp8266_Test";
+
+// 변경하기!!!!!!!!!!!!!!!!!!!!!!!!!!!
+const char *deviceId = "edgeilab_20180611_To_FireD_01";
+///////////////////////////////////////////////////////
 const char *devicePw = "123456";
 const char containerSmoke[] = "Smoke";
 const char containerGeolocation_latitude[] = "Geolocation_latitude";
 const char containerGeolocation_longtitude[] = "Geolocation_longtitude";
-const char targetDeviceId[] = "edgeilab_20180418_esp32_Test";
 
 
 
@@ -53,7 +54,6 @@ float longtitude = 0.0;
 float accuracy = 0.0;
 
 // 상태 확인 변수
-bool flagSwitch = false;
 bool flagLed = false;
 bool flagWarning = false;
 bool flagUploadData = false;
@@ -81,7 +81,7 @@ void setup() {
   display.clear();
   
   // Pin Setup
-  setupPin_ledSwitch();
+  setupPin_led();
   setupPin_piezo();
 
 
@@ -160,9 +160,6 @@ void setup() {
   displayCenter(ArialMT_Plain_10, "SETUP SUCCESS");  
   display.display();
   // ---------------------------------------------------------
-    
-  // 외부 인터럽트 선언
-  attachInterrupt(digitalPinToInterrupt(pinSwitch), handleInterrupt, RISING);  
   delay(2000);
 
 }
@@ -176,89 +173,78 @@ void loop() {
 
   smokeAdcData = (analogRead(pinAdc)/1023.0)*100;
 
-//  Serial.print("ADC : ");
-//  Serial.println(smokeAdcData);
   countSecond++;
-  delay(200);
-
-//  Serial.println("FlagWarning : " + String(flagWarning) + "FlagSwitch : " + String(flagSwitch) + "flagUploadData : " + String(flagUploadData) + "flagCharge : " + String(flagCharge));
-
+  delay(100);
   
 
   // 화재 감지기 이상 감지할 경우
   if(smokeAdcData >= SMOKE_DETECT_CONDITION)  flagWarning = true;
   else  flagWarning = false;
 
-  // 화재 감지할 경우 혹은 테스트일 경우, 경고음 출력, LED 점등
-  if(flagWarning || flagSwitch) {
+  // 각 상황에 맞게 디스플레이
+  
+  // 화재 감지할 경우, 경고음 출력, LED 점등
+  if(flagWarning) {
     timer0_attachInterrupt(warningPiezo);
     digitalWrite(pinLed, HIGH);
-
-    // 디스플레이
-    if(flagWarning) {
-      display.clear();
-      displayCenter(ArialMT_Plain_24, "WARNING");
-      displayBattery();
-      display.display();
-    }
-    else if(flagSwitch) {
-      display.clear();
-      displayCenter(ArialMT_Plain_24, "TEST");
-      displayBattery();
-      display.display();      
-    }
+    display.clear();
+    displayCenter(ArialMT_Plain_24, "WARNING");
+    displayBattery();
+    displayAdc();
+    display.display();
+    
     
     // ThingPlug 업로드 Once 
     if(!flagUploadData) {
       flagUploadData = true;
       if(flagWarning) mqttPublish_UploadData("FIRE_START");
-      else if(flagSwitch) mqttPublish_UploadData("TEST_START");
     }
   }
-  
+  // 방전할 경우, LED 점등
+  else if(flagCharge) {
+    // 방전시  
+    timer0_attachInterrupt(blinkLed);      
+
+    display.clear();
+    displayCenter(ArialMT_Plain_10, "NEED TO CHARGE");    
+    display.display();    
+  }
   else  {
     timer0_detachInterrupt();
     
-    if(!flagWarning && !flagSwitch && !flagCharge) {
-      digitalWrite(pinLed, LOW);    
-      noTone(pinPiezo);
-      // 디스플레이
-      display.clear();
-      displayCenter(ArialMT_Plain_24, "NORMAL");
-      displayBattery();
-      display.display();      
-    }
-
+    digitalWrite(pinLed, LOW);    
+    noTone(pinPiezo);
+    // 디스플레이
+    display.clear();
+    displayCenter(ArialMT_Plain_24, "NORMAL");
+    displayBattery();
+    displayAdc();
+    display.display();     
+     
     if(flagUploadData) {
       flagUploadData = false;
       mqttPublish_UploadData("STOP");  
-    }
+    }    
   }
 
 
+
 //////////////////////////////////////////////////////////////
 //////////////////////////////////////////////////////////////
 
-  // 1초마다 Battery 측정 및 디스플레이
-  if(countSecond%5 == 0) {
-    if(!getBattery()) {
-      // 방전시  
-      timer0_attachInterrupt(blinkLed);      
-      flagCharge = true;
-      display.clear();
-      displayCenter(ArialMT_Plain_10, "NEED TO CHARGE");    
-      display.display();
+  // 10초마다 Battery 측정
+  if(countSecond%100 == 0) {
+    if(getBattery()) {
+      flagCharge = false;
     }
     else {
-      flagCharge = false;      
-      digitalWrite(pinLed, LOW);
-      timer0_detachInterrupt();
-
+      flagCharge = true;     
+      printBattery();
     }
   }
 
-  // 300초마다 위경도 측정
-  if(countSecond%3000 == 0) {
+  // 1800초마다 위경도 측정
+  if(countSecond%18000 == 0) {
     if(getGeolocation()) {
       printLocation();
       mqttPublish_Geolocation();

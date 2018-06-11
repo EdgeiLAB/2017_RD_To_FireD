@@ -18,5 +18,11 @@ void displayCenter(const uint8_t *textSize, String msg) {
 void displayBattery() {
   display.setTextAlignment(TEXT_ALIGN_LEFT);
   display.setFont(ArialMT_Plain_10);    
-  display.drawString(0, 0, "B : " + String(voltagePercentage));
+  display.drawString(80, 0, "B : " + String(voltageBattery));
+}
+
+void displayAdc() {
+  display.setTextAlignment(TEXT_ALIGN_LEFT);
+  display.setFont(ArialMT_Plain_10);
+  display.drawString(0, 0, "A : " + String(smokeAdcData));
 }

@@ -507,7 +507,7 @@ int mqttSubscribe(PubSubClient* client, char* targetDevId, char* con, void (*fp)
     strcpy(targetDeviceId, targetDevId);
     strcpy(container, con);
     strcat(notifySubName, container);
-    strcat(notifySubName, targetDeviceId);
+    strcat(notifySubName, deviceId);
     
     callback.insert(pair<string, mqttCallback>(notifySubName, fp));
 
