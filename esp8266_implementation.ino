@@ -20,8 +20,8 @@ const int pinPiezo = 15;
 
 // 공유기, 구글 API, ThingPlug 엑세스 요구사항
 const char* googleApiKey = "AIzaSyBjBymHPAl222oj_9JpM54bUZPmgxQr0Q4";
-const char* ssid = "yebin";
-const char* passwd = "thdwl15928";
+const char* ssid = "edgeiLAB";
+const char* passwd = "iotiotiot";
 const char *addr = "mqtt.sktiot.com";
 const char *id = "edgeilab";
 const char *pw = "ZEwxMW9DZmNQK3dudWdRcTV4bVhEK1ByK3U2amtxU3NCWjE0OERNREI3QkUwdCtsSmhZWDQ4eGRURkd0NVFIUw==";
