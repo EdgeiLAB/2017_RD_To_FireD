@@ -404,7 +404,7 @@ int mqttCreateNode(PubSubClient* client, const char * devPw)
     if(client->publish(mqttPubPath, bufRequest) ) Serial.println("Publish success");
     else Serial.println("Publish failed");
     
-    while(step == CREATE_NODE_REQUESTED) { client->loop(); }
+    while(step == CREATE_NODE_REQUESTED) { Serial.println("While"); client->loop(); }
     
     printf("Create Node Success\n\n");
 
@@ -485,10 +485,13 @@ int mqttCreateContentInstance(PubSubClient* client, const char* con, char * data
     sprintf(mqttContainer, frameMqttContainer, mqttRemoteCSE, container);
     sprintf(bufRequest, frameCreateContentInstance, 
         mqttContainer, deviceId, strRi, strDkey, dataName, dataValue);
-
+    
+    delay(1);
     printf("5. Create Content Instance :\n payload=%s\n", bufRequest);
     step = CREATE_CONTENT_INSTANCE_REQUESTED;
+    /// 에러 발생 
     client->publish(mqttPubPath, bufRequest);
+    delay(1);
     while(step == CREATE_CONTENT_INSTANCE_REQUESTED) client->loop();
     printf("Publish Success\n\n");
     return TRUE;
@@ -516,10 +519,12 @@ int mqttSubscribe(PubSubClient* client, char* targetDevId, char* con, void (*fp)
 
     sprintf( bufRequest, frameSubscribe,
              mqttContainer, deviceId, strRi, notifySubName, passWord, deviceId);
-
+    delay(1);
     printf("4-1. Subscribe :\n payload=%s\n", bufRequest);
     step = SUBSCRIBE_REQUESTED;
+    
     client->publish(mqttPubPath, bufRequest);
+    delay(1);
     while(step == SUBSCRIBE_REQUESTED) client->loop();
     printf("Publish Success\n\n");
 

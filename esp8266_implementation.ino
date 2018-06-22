@@ -20,19 +20,19 @@ const int pinPiezo = 15;
 
 // 공유기, 구글 API, ThingPlug 엑세스 요구사항
 const char* googleApiKey = "AIzaSyBjBymHPAl222oj_9JpM54bUZPmgxQr0Q4";
-const char* ssid = "edgeiLAB";
-const char* passwd = "iotiotiot";
+const char* ssid = "yebin";
+const char* passwd = "thdwl15928";
 const char *addr = "mqtt.sktiot.com";
 const char *id = "edgeilab";
 const char *pw = "ZEwxMW9DZmNQK3dudWdRcTV4bVhEK1ByK3U2amtxU3NCWjE0OERNREI3QkUwdCtsSmhZWDQ4eGRURkd0NVFIUw==";
 
 // 변경하기!!!!!!!!!!!!!!!!!!!!!!!!!!!
-const char *deviceId = "edgeilab_20180611_To_FireD_01";
+const char *deviceId = "edgeilab_FireD_10";
 ///////////////////////////////////////////////////////
 const char *devicePw = "123456";
 const char containerSmoke[] = "Smoke";
 const char containerGeolocation_latitude[] = "Geolocation_latitude";
-const char containerGeolocation_longtitude[] = "Geolocation_longtitude";
+const char containerGeolocation_longitude[] = "Geolocation_longitude";
 
 
 
@@ -50,7 +50,7 @@ int smokeAdcData = 0;
 
 // 위 경도 값 저장 변수
 float latitude = 0.0;
-float longtitude = 0.0;
+float longitude = 0.0;
 float accuracy = 0.0;
 
 // 상태 확인 변수
@@ -127,7 +127,7 @@ void setup() {
   displayCenter(ArialMT_Plain_10, "THINGPLUG CONNECTING");
   display.display();
   while(!connectingThingplug()) {
-    Serial.println("Fail to connect ThingPlug"); \
+    Serial.println("Fail to connect ThingPlug");
     delay(1000);    
   }
   // 성공
@@ -229,11 +229,16 @@ void loop() {
 
 
 
+
+  // 1초마다 프린트
+  if(countSecond%10 == 0) {
+    Serial.println("Count : " + String(countSecond/10));
+  }
 //////////////////////////////////////////////////////////////
 //////////////////////////////////////////////////////////////
 
-  // 10초마다 Battery 측정
-  if(countSecond%100 == 0) {
+  // 30초마다 Battery 측정
+  if(countSecond%300 == 0 ) {
     if(getBattery()) {
       flagCharge = false;
     }
@@ -243,8 +248,9 @@ void loop() {
     }
   }
 
+
   // 1800초마다 위경도 측정
-  if(countSecond%18000 == 0) {
+  if((countSecond%18000 == 0) &&(flagWarning == false) ) {
     if(getGeolocation()) {
       printLocation();
       mqttPublish_Geolocation();

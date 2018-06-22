@@ -24,7 +24,7 @@ bool connectingThingplug() {
     return false;
   }
 
-  if(!mqttCreateContainer(&mqttClient, containerGeolocation_longtitude)) {
+  if(!mqttCreateContainer(&mqttClient, containerGeolocation_longitude)) {
     printf("4. mqtt create container failed\n");
     return false;
   }
@@ -34,13 +34,30 @@ bool connectingThingplug() {
 
 void mqttPublish_Geolocation() {
   char strLatitude[BUF_SIZE_SMALL];
-  char strLongtitude[BUF_SIZE_SMALL];
-  sprintf(strLatitude, "%f", latitude);
-  sprintf(strLongtitude, "%f", longtitude);
-  mqttCreateContentInstance(&mqttClient, containerGeolocation_latitude, strLatitude);
-  mqttCreateContentInstance(&mqttClient, containerGeolocation_longtitude, strLongtitude);
+  char strLongitude[BUF_SIZE_SMALL];  
+    sprintf(strLatitude, "%f", latitude);
+    sprintf(strLongitude, "%f", longitude);  
+    
+  if(isConnectingWifi()) {
+    mqttCreateContentInstance(&mqttClient, containerGeolocation_latitude, strLatitude);
+    mqttCreateContentInstance(&mqttClient, containerGeolocation_longitude, strLongitude);
+  }  
+  else {
+    connectingWifi();
+    connectingThingplug(); 
+    mqttCreateContentInstance(&mqttClient, containerGeolocation_latitude, strLatitude);
+    mqttCreateContentInstance(&mqttClient, containerGeolocation_longitude, strLongitude);    
+  }
+
 }
 
 void mqttPublish_UploadData(char* str) {
-  mqttCreateContentInstance(&mqttClient, containerSmoke, str);
+  if(isConnectingWifi()) {
+    mqttCreateContentInstance(&mqttClient, containerSmoke, str);    
+  }
+  else {
+    connectingWifi();
+    connectingThingplug();
+    mqttCreateContentInstance(&mqttClient, containerSmoke, str);        
+  }
 }
