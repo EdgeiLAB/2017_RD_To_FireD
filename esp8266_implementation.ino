@@ -8,7 +8,8 @@
 #include "thingplug.h"
 
 #define LOW_BATTERY   3.7
-#define SMOKE_DETECT_CONDITION   30
+#define SMOKE_DETECT_CONDITION   20
+#define TIME 10        // 0.01초
 
 // 5 octave - Do, Re, Mi, Fa, So, La, Ti, 4 octave - Do
 const int aFiveOctave[8] = {523, 587, 659, 698, 784, 880, 987, 1046};
@@ -27,7 +28,7 @@ const char *id = "edgeilab";
 const char *pw = "ZEwxMW9DZmNQK3dudWdRcTV4bVhEK1ByK3U2amtxU3NCWjE0OERNREI3QkUwdCtsSmhZWDQ4eGRURkd0NVFIUw==";
 
 // 변경하기!!!!!!!!!!!!!!!!!!!!!!!!!!!
-const char *deviceId = "edgeilab_FireD_10";
+const char *deviceId = "edgeilab_FireD_03";
 ///////////////////////////////////////////////////////
 const char *devicePw = "123456";
 const char containerSmoke[] = "Smoke";
@@ -60,7 +61,7 @@ bool flagUploadData = false;
 bool flagCharge = false;
 
 // 시간 측정 변수
-int countSecond = 0;
+int countSecond = 1;
 
 //////////////////////////////////////////////////////////////////////////
 //////////////////////////////////////////////////////////////////////////
@@ -147,6 +148,7 @@ void setup() {
     delay(1000);
   }
   // 성공
+  mqttPublish_Geolocation();
   Serial.println("Succeed to measure Geolocation");  
   delay(2000);
   // -------------------------------------------------------
@@ -174,7 +176,7 @@ void loop() {
   smokeAdcData = (analogRead(pinAdc)/1023.0)*100;
 
   countSecond++;
-  delay(100);
+  delay(TIME);
   
 
   // 화재 감지기 이상 감지할 경우
@@ -193,11 +195,13 @@ void loop() {
     displayAdc();
     display.display();
     
-    
     // ThingPlug 업로드 Once 
     if(!flagUploadData) {
       flagUploadData = true;
-      if(flagWarning) mqttPublish_UploadData("FIRE_START");
+      if(flagWarning) {
+        mqttPublish_UploadData("FIRE_START");
+        delay(1000);
+      }
     }
   }
   // 방전할 경우, LED 점등
@@ -224,6 +228,8 @@ void loop() {
     if(flagUploadData) {
       flagUploadData = false;
       mqttPublish_UploadData("STOP");  
+      smokeAdcData = 0;
+      delay(1000);
     }    
   }
 
@@ -231,14 +237,14 @@ void loop() {
 
 
   // 1초마다 프린트
-  if(countSecond%10 == 0) {
+  if(countSecond%(TIME*100) == 0) {
     Serial.println("Count : " + String(countSecond/10));
   }
 //////////////////////////////////////////////////////////////
 //////////////////////////////////////////////////////////////
 
-  // 30초마다 Battery 측정
-  if(countSecond%300 == 0 ) {
+  // 60초마다 Battery 측정
+  if(countSecond%(TIME*6000) == 0 ) {
     if(getBattery()) {
       flagCharge = false;
     }
@@ -248,13 +254,16 @@ void loop() {
     }
   }
 
-
+/*
   // 1800초마다 위경도 측정
-  if((countSecond%18000 == 0) &&(flagWarning == false) ) {
+  if((countSecond%36000 == 0) &&(flagWarning == false) ) {
     if(getGeolocation()) {
-      printLocation();
-      mqttPublish_Geolocation();
+      delay(10);
+      if(!flagWarning) {
+        mqttPublish_Geolocation();              
+        printLocation();  
+      }    
     }
   }
-
+*/
 }

@@ -6,6 +6,7 @@
 #include <stdlib.h>
 #include <map>
 #include <string>
+#include <vector>
 
 #define TRUE      1
 #define FALSE     0
@@ -35,6 +36,8 @@ enum MqttStep {
   CREATE_CONTENT_INSTANCE_REQUESTED,
   DELETE_SUBSCRIBE,
   DELETE_SUBSCRIBE_REQUESTED,
+  GET_LATEST_DATA,
+  GET_LATEST_DATA_REQUESTED,
   FINISH
 };
 
@@ -62,8 +65,11 @@ int mqttCreateMgmtCmd(PubSubClient* client);
 
 int mqttCreateContentInstance(PubSubClient* client, const char* con, char * dataValue);
 
-int mqttSubscribe(PubSubClient* client, char* targetDevId, char* con, void (*fp)(char *));
+int mqttSubscribe(PubSubClient* client, const char* targetDevId, const char* con, void (*fp)(char *));
 
-int mqttDeleteSubscribe(PubSubClient* client, char* targetDevId, char* con);
+int mqttDeleteSubscribe(PubSubClient* client, const char* targetDevId, const char* con);
+
+int mqttGetLatest(PubSubClient* client, const char* targetdevId, const char* con, void(*fp)(char*));
 
 #endif
+

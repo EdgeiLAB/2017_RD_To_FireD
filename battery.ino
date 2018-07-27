@@ -1,8 +1,8 @@
 // 배터리 측정
-bool getBattery(void) {
+bool getBattery() {
   Serial.println("Before Battery");
   voltageBattery = battery.voltageLevel();
-  voltagePercentage = (int)battery.fuelLevel();
+  voltagePercentage = int(battery.fuelLevel());
   Serial.println("After Battery");
   if(voltagePercentage >= 100)  voltagePercentage = 100;
 
@@ -19,6 +19,4 @@ void printBattery() {
   Serial.print("Voltage : ");
   Serial.println(voltagePercentage);
 }
-
-
 

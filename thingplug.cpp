@@ -1,18 +1,20 @@
 #include <Arduino.h>
+#include <string.h>
 #include "thingplug.h"
 
 typedef void (*mqttCallback)(char*);
 using namespace std;
-std::map<string, mqttCallback> callback;
-std::map<string, mqttCallback>::iterator iter;
+
+
 
 /* The pathes will be created dynamically */
-char mqttPubTopic[BUF_SIZE_SMALL] = "";
-char mqttSubTopic[BUF_SIZE_SMALL] = "";
-char mqttPubPath[BUF_SIZE_SMALL]  = "";
-char mqttRemoteCSE[BUF_SIZE_SMALL]  = "";
-char mqttContainer[BUF_SIZE_SMALL]  = "";
-char mqttSubscription[BUF_SIZE_SMALL] = "";
+char *mqttPubTopic = NULL;
+char *mqttSubTopic = NULL;
+char *mqttPubPath  = NULL;
+char *mqttRemoteCSE  = NULL;
+char *mqttContainer  = NULL;
+char *mqttSubscription = NULL;
+char *mqttLatest = NULL;
 
 const char frameMqttPubTopic[]  = "/oneM2M/req_msg/%s/%s";  /* appEUI, deviceId */
 const char frameMqttSubTopic[]  = "/oneM2M/resp/%s/%s";     /* deviceId, appEUI */
@@ -20,23 +22,22 @@ const char frameMqttPubPath[] = "/oneM2M/req/%s/%s";        /* deviceId, appEUI 
 const char frameMqttRemoteCSE[] = "/%s/v1_0/remoteCSE-%s";    /* appEUI, deviceId */
 const char frameMqttContainer[] = "%s/container-%s";        /* remoteCSE, container */
 const char frameMqttSubscription[] = "%s/subscription-%s";  /* container, notifyName */
+const char frameMqttLatest[] = "%s/latest"; /*container*/
 
-char bufRequest[BUF_SIZE_LARGE] = "";
-char strNL[BUF_SIZE_SMALL]    = "";
-char strExt[BUF_SIZE_SMALL]   = "";
-char strDkey[BUF_SIZE_SMALL]    = "";
-char dataName[BUF_SIZE_SMALL]   = "";
-char dataValue[BUF_SIZE_SMALL]  = "";
+char *strNL    = new char[BUF_SIZE_SMALL];
+char *strExt   = new char[BUF_SIZE_SMALL];
+char *strDkey    = new char[BUF_SIZE_SMALL];
+char *dataName   = new char[BUF_SIZE_SMALL];
+char *dataValue  = new char[BUF_SIZE_SMALL];
 //void (*mqttCallback)(char*) = NULL;
 
 
-static char address[BUF_SIZE_SMALL]    = "";
-static char userName[BUF_SIZE_SMALL]   = "";
-static char passWord[BUF_SIZE_SMALL]   = "";
-static char deviceId[BUF_SIZE_SMALL]   = "";
-static char passCode[BUF_SIZE_SMALL]   = "";
-static char container[BUF_SIZE_SMALL]  = "";
-static char targetDeviceId[BUF_SIZE_SMALL]  = "";
+static char *address    = new char[BUF_SIZE_SMALL];
+static char *userName   = new char[BUF_SIZE_SMALL];
+static char *passWord   = new char[BUF_SIZE_SMALL];
+static char *deviceId   = new char[BUF_SIZE_SMALL];
+static char *passCode   = new char[BUF_SIZE_SMALL];
+
 
 enum MqttStep step = CREATE_NODE;
 
@@ -177,72 +178,110 @@ const char frameDeleteSubscribe[] =
 </pc>\
 </m2m:req>";
 
+/*step 6-2 - params: mqttLatest, deviceId, ri, uKey*/
+const char frameLatest[] = 
+"<m2m:req>\
+<op>2</op>\
+<to>%s</to>\
+<fr>%s</fr>\
+<ri>%s</ri>\
+<cty>application/vnd.onem2m-prsp+xml</cty>\
+<uKey>%s</uKey>\
+</m2m:req>";
+
 int mqttConnect(PubSubClient* client, const char* addr, const char* id, const char* pw, const char* devId) 
 {
-    strcpy(address, addr);
-    strcpy(userName, id);
-    strcpy(passWord, pw);
-    strcpy(deviceId, devId);
+  mqttPubTopic = new char[BUF_SIZE_SMALL];
+  mqttSubTopic = new char[BUF_SIZE_SMALL];
+  mqttPubPath = new char[BUF_SIZE_SMALL];
+  mqttRemoteCSE = new char[BUF_SIZE_SMALL];
+  
+  strcpy(address, addr);
+  strcpy(userName, id);
+  strcpy(passWord, pw);
+  strcpy(deviceId, devId);
 
-    int rc;
+  int rc = 0;
 
-    sprintf(mqttPubTopic, frameMqttPubTopic, APP_EUI, deviceId);
-    sprintf(mqttSubTopic, frameMqttSubTopic, deviceId, APP_EUI);
-    sprintf(mqttPubPath, frameMqttPubPath, deviceId, APP_EUI);
-    sprintf(mqttRemoteCSE, frameMqttRemoteCSE, APP_EUI, deviceId);
+  sprintf(mqttPubTopic, frameMqttPubTopic, APP_EUI, deviceId);
+  sprintf(mqttSubTopic, frameMqttSubTopic, deviceId, APP_EUI);
+  sprintf(mqttPubPath, frameMqttPubPath, deviceId, APP_EUI);
+  sprintf(mqttRemoteCSE, frameMqttRemoteCSE, APP_EUI, deviceId);
 
-    Serial.println(mqttPubTopic);
-    Serial.println(mqttSubTopic);
-    Serial.println(mqttPubPath);
-    Serial.println(mqttRemoteCSE);   
+  Serial.println(mqttPubTopic);
+  Serial.println(mqttSubTopic);
+  Serial.println(mqttPubPath);
+  Serial.println(mqttRemoteCSE);   
 
-    printf("Attempting MQTT connection...\n");
-    client->setServer(addr, MQTT_BROKER_PORT);
-    boolean result = client->connect(deviceId, id, pw);
-    if (result)
-    {
-        printf("Mqtt connected\n");
+  Serial.println("Attempting MQTT connection...");
+  client->setServer(addr, MQTT_BROKER_PORT);
+  boolean result = client->connect(deviceId, id, pw);
+  if (result)
+  {
+      Serial.println("Mqtt connected");
       
-        // registration of the topics
-        Serial.println("MQTT connected");
-        step = CREATE_NODE;
-        if (client->subscribe(mqttSubTopic)) Serial.println("mqttSubTopic subscribed");
-        else Serial.println("mqttSubTopic Not subscribed");
+      // registration of the topics
+      Serial.println("MQTT connected");
+      step = CREATE_NODE;
+      if (client->subscribe(mqttSubTopic)) Serial.println("mqttSubTopic subscribed");
+      else Serial.println("mqttSubTopic Not subscribed");
         
-        if (client->subscribe(mqttPubTopic)) Serial.println("mqttPubTopic subscribed");
-        else Serial.println("mqttPubTopic Not subscribed");
+      if (client->subscribe(mqttPubTopic)) Serial.println("mqttPubTopic subscribed");
+      else Serial.println("mqttPubTopic Not subscribed");
 
-        client->setCallback(callbackArrived);
-    }
-    else 
-    {
-        printf("Failed to connect, return code %d\n", rc);
-        return FALSE;
-    }
+      client->setCallback(callbackArrived);
+  }
+  else 
+  {
+      Serial.println("Failed to connect, return code " + String(rc));
+      return FALSE;
+  }
 
-    return TRUE;
+  delete[] mqttPubTopic;
+  delete[] mqttSubTopic;
+
+  mqttPubTopic = NULL;
+  mqttSubTopic = NULL;
+    
+  return TRUE;
 }
 
 void callbackArrived(char * topicName, uint8_t * payload, unsigned int len)
 {
   Serial.print("MQTT Message arrived: Topic=");
   Serial.println(topicName);
-
+  std::map<string, mqttCallback> callback;
+  std::map<string, mqttCallback>::iterator iter;  
+  std::pair<string, string> latestData;
+  std::vector<pair<string, string>> latestDataVector(1000);
   if(len>0) payload[len]='\0';
-  printf("Payload(%d): ", len);
+  Serial.println("Payload(" +String(len) + "): ");
   Serial.println((char*)payload);
 
+  mqttCallback callbackFunction = NULL;
+
   // error check
-  char strRsc[128]  = "";
-  int rc = parseValue(strRsc, (char*)payload, len, "rsc");
+  char strRsc[BUF_SIZE_SMALL];
+  char strRi[BUF_SIZE_SMALL];
+  char strCon[BUF_SIZE_SMALL];  
+  char strRoute[BUF_SIZE_SMALL];
+  char notifySubName[BUF_SIZE_SMALL];  
+  int rc = 0;
+
+  rc = parseValue(strRsc, (char*)payload, len, "rsc");  
+  
   if(rc==MQTTCLIENT_SUCCESS )
   {
     printResultCode(strRsc);
     int resultCode = atoi(strRsc);
-    if(resultCode == 4004) return;
-    if(resultCode == 4000) return;
-  
-    char strRi[128] = "";
+    if(((resultCode == 4000) || (resultCode == 4004)) && step == GET_LATEST_DATA_REQUESTED) {
+      step = FINISH;
+      return;
+    }
+    else if(resultCode == 4000 || resultCode == 4004) {
+      return;
+    }
+
     generateRi(strRi);
 
     switch(step) {
@@ -250,7 +289,7 @@ void callbackArrived(char * topicName, uint8_t * payload, unsigned int len)
           // parse response message
           rc = parseValue(strNL, strstr((char*)payload, "pc"), len, "ri");
           if(rc==MQTTCLIENT_SUCCESS) {
-        printf("ri:%s\n", strNL);
+        Serial.println("ri: "+ String(strNL));
         strcpy(strExt, strNL);
         step = CREATE_REMOTE_CSE;
       }
@@ -258,7 +297,7 @@ void callbackArrived(char * topicName, uint8_t * payload, unsigned int len)
   
     case  CREATE_REMOTE_CSE_REQUESTED : 
       rc = parseValue(strDkey, (char*)payload, len, "dKey");
-      printf("dKey=%s\n", strDkey);
+      Serial.println("dKey=" + String(strDkey));
       if(rc==MQTTCLIENT_SUCCESS) {
         step = CREATE_CONTAINER;
             }
@@ -276,36 +315,72 @@ void callbackArrived(char * topicName, uint8_t * payload, unsigned int len)
       step = CREATE_CONTENT_INSTANCE;
       break;
   
+    case GET_LATEST_DATA_REQUESTED:
+    {
+      parseValue(strRi, (char*)payload, len, "ri");
+
+      rc = parseValue(strCon, (char*)payload, len, "con");
+      if(rc ==MQTTCLIENT_FAILURE) {
+        Serial.println("can not find value");
+        step = FINISH;
+        break;
+      }
+      string notificationName = "";
+      
+      for(int i = 0; i < latestDataVector.size(); i++) {
+        latestData = latestDataVector.at(i);
+        if(latestData.first.compare(strRi) == 0) {
+          notificationName = latestData.second;
+        }else continue;
+      }
+      Serial.print("latestData callback : " + String(strRi) + "\t" + String(notificationName.c_str()) + "\t" + String(strCon));
+
+
+      iter = callback.find(notificationName);
+      if(iter != callback.end()) 
+        callbackFunction = callback[notificationName];
+      else 
+        callbackFunction = NULL;
+        
+      if(strCon != NULL && callbackFunction != NULL) 
+        callbackFunction(strCon);
+      step = FINISH;
+      break;
+    }
     default:
       step = FINISH;
       break;
-      }
+    }
   }
   else
   {
     // Notification from ThingPlug Server
-    char strCon[128] = "";
     rc = parseValue(strCon, (char*)payload, len, "con");
-
-    char strRoute[128] = "";
-    char notifySubName[128] = "";
+    
     parseValue(strRoute, (char*)payload, len, "sr");
     char *pStrRoute = strtok(strRoute, "-");
     while (pStrRoute) {
-      strncpy(notifySubName, pStrRoute, 128);
+      strncpy(notifySubName, pStrRoute, BUF_SIZE_SMALL);
       pStrRoute = strtok(NULL, "-");
     }
     //iter를 이용한 반환 필요
-    mqttCallback callbackFunction;
     iter = callback.find(notifySubName);
-    if(iter != callback.end()) {
+    if(iter != callback.end()) 
       callbackFunction = callback[notifySubName];
-    }
     else 
       callbackFunction = NULL;
+      
     if(rc==MQTTCLIENT_SUCCESS && callbackFunction!=NULL) callbackFunction(strCon);
   } 
 
+  callback.clear(); 
+//  memset(strRsc, 0, BUF_SIZE_SMALL);
+//  memset(strRi, 0, BUF_SIZE_SMALL);
+//  memset(strCon, 0, BUF_SIZE_SMALL);
+//  memset(strRoute, 0, BUF_SIZE_SMALL);
+//  memset(notifySubName, 0, BUF_SIZE_SMALL);    
+  callbackFunction = NULL;
+       
   return; // Do Not Need to be recalled.
 }
 
@@ -320,17 +395,17 @@ int parseValue(char* buf, const char * payload, const int len, const char * para
 {
   if(payload==NULL)
   {
-    printf("parseValue error: Payload is NULL\n");
+    Serial.println("parseValue error: Payload is NULL");
     return MQTTCLIENT_FAILURE;
   } 
 
   int result = MQTTCLIENT_FAILURE;
   int lenParam = strlen(param);
   
-  char tagBegin[128]="";
+  char tagBegin[BUF_SIZE_SMALL];
   sprintf(tagBegin, "<%s>", param);
   
-  char tagEnd[128];
+  char tagEnd[BUF_SIZE_SMALL];
   sprintf(tagEnd, "</%s>", param);
 
   char * pBegin = strstr(payload, tagBegin);
@@ -369,6 +444,8 @@ void printResultCode(char * buf)
 
 void checkMqttPacketSize() 
 {
+  char *bufRequest = new char[BUF_SIZE_LARGE];
+  
   if(MQTT_MAX_PACKET_SIZE<BUF_SIZE_LARGE)
   {
     sprintf(bufRequest, "\nERROR: MQTT_MAX_PACKET_SIZE(%d) is smaller than BUF_SIZE_LARGE(%d).", MQTT_MAX_PACKET_SIZE, BUF_SIZE_LARGE);
@@ -382,123 +459,181 @@ void checkMqttPacketSize()
     sprintf(bufRequest, "\nPacket Size OK: MQTT_MAX_PACKET_SIZE(%d), BUF_SIZE_LARGE(%d).", MQTT_MAX_PACKET_SIZE, BUF_SIZE_LARGE);
     Serial.println(bufRequest);
   }
+  
+  delete[] bufRequest;
+  bufRequest = NULL;
 }
 
 int mqttCreateNode(PubSubClient* client, const char * devPw)
 {
-    checkMqttPacketSize();
+  char *bufRequest = new char[BUF_SIZE_LARGE]; 
+  checkMqttPacketSize();
 
-    strcpy(passCode, devPw);
+  strcpy(passCode, devPw);
 
-    int rc = 0;
-    char ri[100]="";
-    generateRi(ri);
+  int rc = 0;
+  char ri[BUF_SIZE_SMALL];
+  generateRi(ri);
 
-    sprintf(bufRequest,frameCreateNode, APP_EUI, deviceId, ri, deviceId, deviceId, deviceId);    
-    printf("1. Create Node :\n");
-    printf("payload=");
-    Serial.println(bufRequest);
+  sprintf(bufRequest,frameCreateNode, APP_EUI, deviceId, ri, deviceId, deviceId, deviceId);    
+  Serial.println("1. Create Node :");
+  Serial.print("payload=");
+  Serial.println(bufRequest);
 
-    // publish bufRequest
-    step = CREATE_NODE_REQUESTED;
-    if(client->publish(mqttPubPath, bufRequest) ) Serial.println("Publish success");
-    else Serial.println("Publish failed");
+  // publish bufRequest
+  step = CREATE_NODE_REQUESTED;
+  if(client->publish(mqttPubPath, bufRequest) ) Serial.println("Publish success");
+  else Serial.println("Publish failed");
     
-    while(step == CREATE_NODE_REQUESTED) { Serial.println("While"); client->loop(); }
+  while(step == CREATE_NODE_REQUESTED) { client->loop(); }
     
-    printf("Create Node Success\n\n");
+  Serial.println("Create Node Success");
+  Serial.println();
 
-    return TRUE;
+  delete[] bufRequest;
+  bufRequest = NULL;
+  
+  return TRUE;
 }
 
 int mqttCreateRemoteCSE(PubSubClient* client)
 {
-    int rc = 0;
+  int rc = 0;
+  char *bufRequest = new char[BUF_SIZE_LARGE];
+  char strRi[BUF_SIZE_SMALL];
+  generateRi(strRi);
 
-    char strRi[100]="";
-    generateRi(strRi);
+  sprintf(bufRequest, frameCreateRemoteCSE, APP_EUI,
+          deviceId, strRi, passCode, deviceId, deviceId, strNL);
 
-    sprintf(bufRequest, frameCreateRemoteCSE, APP_EUI,
-            deviceId, strRi, passCode, deviceId, deviceId, strNL);
+  Serial.println("2. Create RemoteCSE :");
+  Serial.print("payload=");
+  Serial.println(bufRequest);
+  step = CREATE_REMOTE_CSE_REQUESTED;
+  client->publish(mqttPubPath, bufRequest);
+  while(step == CREATE_REMOTE_CSE_REQUESTED) client->loop();
+  Serial.println("Publish Success\n\n");
 
-    printf("2. Create RemoteCSE :\n payload=%s\n", bufRequest);
-    step = CREATE_REMOTE_CSE_REQUESTED;
-    client->publish(mqttPubPath, bufRequest);
-    while(step == CREATE_REMOTE_CSE_REQUESTED) client->loop();
-    printf("Publish Success\n\n");
-
-    return TRUE;
+  delete[] bufRequest;
+  bufRequest = NULL;
+    
+  return TRUE;
 }
 
 
 int mqttCreateContainer(PubSubClient* client, const char* con)
 {
-    strcpy(container, con);
+  char *bufRequest = new char[BUF_SIZE_LARGE];
+  char container[BUF_SIZE_SMALL]; 
+  char strRi[BUF_SIZE_SMALL];
+  mqttContainer = new char[BUF_SIZE_SMALL];
+  int rc = 0;
 
-    int rc = 0;
+  generateRi(strRi);
+  strcpy(container, con);
+  sprintf(mqttContainer, frameMqttContainer, mqttRemoteCSE, container);
+  sprintf( bufRequest, frameCreateContainer,
+           mqttRemoteCSE, deviceId, strRi, container, strDkey);
 
-    char strRi[100]="";
-    generateRi(strRi);
+  Serial.println("3. Create Container : ");
+  Serial.print("payload= ");
+  Serial.println(bufRequest);
+  
+  step = CREATE_CONTAINER_REQUESTED;
+  client->publish(mqttPubPath, bufRequest);
+  while(step == CREATE_CONTAINER_REQUESTED) client->loop();
+  Serial.println("Publish Success");
+  Serial.println();
 
-    sprintf(mqttContainer, frameMqttContainer, mqttRemoteCSE, container);
-    sprintf( bufRequest, frameCreateContainer,
-             mqttRemoteCSE, deviceId, strRi, container, strDkey);
-
-    printf("3. Create Container :\n payload=%s\n", bufRequest);
-    step = CREATE_CONTAINER_REQUESTED;
-    client->publish(mqttPubPath, bufRequest);
-    while(step == CREATE_CONTAINER_REQUESTED) client->loop();
-    printf("Publish Success\n\n");
-
-    return TRUE;
+  delete[] bufRequest;
+  delete[] mqttContainer;
+  
+  bufRequest = NULL;
+  mqttContainer = NULL;
+  
+  return TRUE;
 }
 
 int mqttCreateMgmtCmd(PubSubClient* client)
 {
-    int rc = 0;
+  char *bufRequest = new char[BUF_SIZE_LARGE];
+  int rc = 0;
 
-    char strRi[100]="";
-    generateRi(strRi);
+  char strRi[BUF_SIZE_SMALL];;
+  generateRi(strRi);
 
-    sprintf( bufRequest, frameCreateMgmtCmd,
-        APP_EUI, deviceId, strRi, deviceId, strDkey, strExt);
+  sprintf( bufRequest, frameCreateMgmtCmd,
+      APP_EUI, deviceId, strRi, deviceId, strDkey, strExt);
 
-    printf("4. Create Mgmt Cmd :\n payload=%s\n", bufRequest);
-    step = CREATE_MGMT_CMD_REQUESTED;
-    client->publish(mqttPubPath, bufRequest);
-    while(step == CREATE_MGMT_CMD_REQUESTED) client->loop();
-    printf("Publish Success\n\n");
+  Serial.println("4. Create Mgmt Cmd : ");
+  Serial.print("payload= ");
+  Serial.println(bufRequest);
+  
+  step = CREATE_MGMT_CMD_REQUESTED;
+  client->publish(mqttPubPath, bufRequest);
+  while(step == CREATE_MGMT_CMD_REQUESTED) client->loop();
+  Serial.println("Publish Success");
+  Serial.println();
 
-    return TRUE;
+  delete[] bufRequest;
+  bufRequest = NULL;
+  
+  return TRUE;
 }
 
 int mqttCreateContentInstance(PubSubClient* client, const char* con, char * dataValue)
 {
-    int rc = 0;
+  char *bufRequest = new char[BUF_SIZE_LARGE];
 
-    char strRi[128] = "";
-    generateRi(strRi);
+  mqttRemoteCSE = new char[BUF_SIZE_SMALL];
+  mqttContainer = new char[BUF_SIZE_SMALL];
+  int rc = 0;
+  long count = 0;   
+  char container[BUF_SIZE_SMALL];
+  char strRi[BUF_SIZE_SMALL];
+  generateRi(strRi);
 
-    strcpy(container, con);
-    strcpy(dataName, "text"); // data type
-    sprintf(mqttRemoteCSE, frameMqttRemoteCSE, APP_EUI, deviceId);
-    sprintf(mqttContainer, frameMqttContainer, mqttRemoteCSE, container);
-    sprintf(bufRequest, frameCreateContentInstance, 
-        mqttContainer, deviceId, strRi, strDkey, dataName, dataValue);
-    
-    delay(1);
-    printf("5. Create Content Instance :\n payload=%s\n", bufRequest);
-    step = CREATE_CONTENT_INSTANCE_REQUESTED;
-    /// 에러 발생 
-    client->publish(mqttPubPath, bufRequest);
-    delay(1);
-    while(step == CREATE_CONTENT_INSTANCE_REQUESTED) client->loop();
-    printf("Publish Success\n\n");
-    return TRUE;
+  strcpy(container, con);
+  strcpy(dataName, "text"); // data type
+  sprintf(mqttRemoteCSE, frameMqttRemoteCSE, APP_EUI, deviceId);
+  delay(1);
+  sprintf(mqttContainer, frameMqttContainer, mqttRemoteCSE, container);
+  delay(1);
+  sprintf(bufRequest, frameCreateContentInstance, 
+      mqttContainer, deviceId, strRi, strDkey, dataName, dataValue);
+  delay(1);
+  Serial.println("5. Create Content Instance : ");
+  Serial.print("payload= ");
+  Serial.println(bufRequest);
+  step = CREATE_CONTENT_INSTANCE_REQUESTED;
+  client->publish(mqttPubPath, bufRequest);
+  while(step == CREATE_CONTENT_INSTANCE_REQUESTED) {
+    client -> loop();
+    count++;
+    if(count >= 999999) {
+      Serial.println("Forced Termination");
+      step = FINISH;
+      count = 0;
+      return FALSE; 
+    }
+  }
+  Serial.println("Publish Success");
+  Serial.println();
+  
+  delete[] bufRequest;
+  delete[] mqttRemoteCSE;
+  delete[] mqttContainer;
+  
+  bufRequest = NULL;
+  mqttRemoteCSE = NULL;
+  mqttContainer = NULL;
+  
+
+  return TRUE;
 }
 
-
-int mqttSubscribe(PubSubClient* client, char* targetDevId, char* con, void (*fp)(char *))
+/*
+int mqttSubscribe(PubSubClient* client, const char* targetDevId, const char* con, void (*fp)(char *))
 {
     //mqttCallback = fp;
 
@@ -510,7 +645,7 @@ int mqttSubscribe(PubSubClient* client, char* targetDevId, char* con, void (*fp)
     strcpy(targetDeviceId, targetDevId);
     strcpy(container, con);
     strcat(notifySubName, container);
-    strcat(notifySubName, deviceId);
+    strcat(notifySubName, targetDeviceId);
     
     callback.insert(pair<string, mqttCallback>(notifySubName, fp));
 
@@ -519,28 +654,26 @@ int mqttSubscribe(PubSubClient* client, char* targetDevId, char* con, void (*fp)
 
     sprintf( bufRequest, frameSubscribe,
              mqttContainer, deviceId, strRi, notifySubName, passWord, deviceId);
-    delay(1);
+
     printf("4-1. Subscribe :\n payload=%s\n", bufRequest);
     step = SUBSCRIBE_REQUESTED;
-    
     client->publish(mqttPubPath, bufRequest);
-    delay(1);
     while(step == SUBSCRIBE_REQUESTED) client->loop();
     printf("Publish Success\n\n");
 
     return TRUE;
 }
 
-int mqttDeleteSubscribe(PubSubClient* client, char* targetDevId, char* con)
+int mqttDeleteSubscribe(PubSubClient* client, const char* targetDevId, const char* con)
 {
     char strRi[128] = "";
     generateRi(strRi);
     char notifySubName[BUF_SIZE_SMALL] = "";
     strcpy(container, con);
+    strcpy(targetDeviceId, targetDevId);
     strcat(notifySubName, container);
     strcat(notifySubName, targetDeviceId);
 
-    strcpy(targetDeviceId, targetDevId);
     sprintf(mqttRemoteCSE, frameMqttRemoteCSE, APP_EUI, targetDeviceId);
     sprintf(mqttContainer, frameMqttContainer, mqttRemoteCSE, container);
     sprintf(mqttSubscription, frameMqttSubscription, mqttContainer, notifySubName);
@@ -553,4 +686,88 @@ int mqttDeleteSubscribe(PubSubClient* client, char* targetDevId, char* con)
     printf("Publish Success\n\n");
 
     return TRUE;
+}
+*/
+
+int mqttGetLatest(PubSubClient* client, const char* targetDevId, const char* con, void(*fp)(char*))
+{
+  std::map<string, mqttCallback> callback;
+  std::map<string, mqttCallback>::iterator iter;
+  pair<string, string> latestData;
+  vector<pair<string, string>> latestDataVector(1000);  
+  
+  char *bufRequest = new char[BUF_SIZE_LARGE];
+   
+  mqttRemoteCSE = new char[BUF_SIZE_SMALL];
+  mqttContainer = new char[BUF_SIZE_SMALL];
+  mqttLatest = new char[BUF_SIZE_SMALL];
+  long count = 0;    
+  char strRi[BUF_SIZE_SMALL];
+  char notificationName[BUF_SIZE_SMALL];
+  char targetDeviceId[BUF_SIZE_SMALL];  
+  char container[BUF_SIZE_SMALL]; 
+ 
+  generateRi(strRi);
+  
+  strcpy(container, con);
+  strcpy(targetDeviceId, targetDevId);
+  strcat(notificationName, container);
+  strcat(notificationName, targetDeviceId);
+ 
+  Serial.println(); 
+  Serial.println(); 
+
+  latestData = make_pair(strRi, notificationName);
+  if(latestDataVector.size() >= 1000) {
+    for(int i = 0; i < 500; i++) {
+      latestDataVector.erase(latestDataVector.begin());
+    }
+  }
+  latestDataVector.push_back(latestData);
+  
+  Serial.print("latestData : " + String(strRi) + "\t" + String(notificationName));
+  callback.insert(pair<string, mqttCallback>(notificationName, fp));
+  callback[notificationName] = fp;
+     
+  sprintf(mqttRemoteCSE, frameMqttRemoteCSE, APP_EUI, targetDeviceId);
+  sprintf(mqttContainer, frameMqttContainer, mqttRemoteCSE, container);
+  sprintf(mqttLatest, frameMqttLatest, mqttContainer);
+  sprintf(bufRequest, frameLatest, mqttLatest, deviceId, strRi, passWord);
+
+  Serial.println("5. get Latest Data : ");
+  Serial.print("payload= ");
+  Serial.println(bufRequest);
+  
+  step = GET_LATEST_DATA_REQUESTED;
+  client -> publish(mqttPubPath, bufRequest);       // 누수 발생
+  
+  while(step == GET_LATEST_DATA_REQUESTED) {
+    client -> loop();
+    count++;
+    if(count >= 999999) {
+      Serial.println("Forced Termination");
+      step = FINISH;
+      count = 0;
+      return FALSE; 
+    }
+  }
+  Serial.println("Publish success");
+  Serial.println();
+    
+  delete[] bufRequest;
+  delete[] mqttLatest;
+  delete[] mqttRemoteCSE;
+  delete[] mqttContainer;
+//  memset(strRi, 0, BUF_SIZE_SMALL);
+//  memset(notificationName, 0, BUF_SIZE_SMALL);
+//  memset(targetDeviceId, 0, BUF_SIZE_SMALL);
+//  memset(container, 0, BUF_SIZE_SMALL);  
+  
+  bufRequest = NULL;
+  mqttLatest = NULL;
+  mqttRemoteCSE = NULL;
+  mqttContainer = NULL;
+  
+  return TRUE;
+
 }

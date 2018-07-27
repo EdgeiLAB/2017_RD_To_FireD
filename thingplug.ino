@@ -18,7 +18,7 @@ bool connectingThingplug() {
     printf("4. mqtt create container failed\n");
     return false;
   }
-
+    
   if(!mqttCreateContainer(&mqttClient, containerGeolocation_latitude)) {
     printf("4. mqtt create container failed\n");
     return false;
@@ -31,33 +31,35 @@ bool connectingThingplug() {
   return true;
 }
 
-
 void mqttPublish_Geolocation() {
+  Serial.println("Publish Geolocation");
   char strLatitude[BUF_SIZE_SMALL];
-  char strLongitude[BUF_SIZE_SMALL];  
-    sprintf(strLatitude, "%f", latitude);
-    sprintf(strLongitude, "%f", longitude);  
-    
-  if(isConnectingWifi()) {
-    mqttCreateContentInstance(&mqttClient, containerGeolocation_latitude, strLatitude);
-    mqttCreateContentInstance(&mqttClient, containerGeolocation_longitude, strLongitude);
-  }  
-  else {
-    connectingWifi();
-    connectingThingplug(); 
-    mqttCreateContentInstance(&mqttClient, containerGeolocation_latitude, strLatitude);
-    mqttCreateContentInstance(&mqttClient, containerGeolocation_longitude, strLongitude);    
-  }
+  char strLongitude[BUF_SIZE_SMALL];
+  sprintf(strLatitude, "%f", latitude);
+  sprintf(strLongitude, "%f", longitude);
 
+  if(!isConnectingWifi()) {
+    connectingWifi();
+    connectingThingplug();    
+  }
+  while(!mqttCreateContentInstance(&mqttClient, containerGeolocation_latitude, strLatitude)) 
+    connectingThingplug();    
+    
+  while(!mqttCreateContentInstance(&mqttClient, containerGeolocation_longitude, strLongitude))
+    connectingThingplug();    
+
+       
+  memset(strLatitude, 0, BUF_SIZE_SMALL);
+  memset(strLongitude, 0, BUF_SIZE_SMALL);  
 }
 
+
 void mqttPublish_UploadData(char* str) {
-  if(isConnectingWifi()) {
-    mqttCreateContentInstance(&mqttClient, containerSmoke, str);    
-  }
-  else {
+  if(!isConnectingWifi()) {
     connectingWifi();
     connectingThingplug();
-    mqttCreateContentInstance(&mqttClient, containerSmoke, str);        
+  }
+  while(!mqttCreateContentInstance(&mqttClient, containerSmoke, str)) {
+    connectingThingplug();
   }
 }
